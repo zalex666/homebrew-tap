@@ -1,0 +1,65 @@
+name: Bump cask from appcast
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read newest version from the Sparkle appcast
+        id: appcast
+        run: |
+          set -euo pipefail
+          curl -fsSL -o appcast.xml https://zalex666.github.io/inline-autocomplete/appcast.xml
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import re
+          import xml.etree.ElementTree as ET
+
+          ns = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+          root = ET.parse("appcast.xml").getroot()
+          best = None
+          for item in root.iter("item"):
+              short = item.findtext("sparkle:shortVersionString", namespaces=ns)
+              url = None
+              for enc in item.findall("enclosure"):
+                  u = enc.get("url", "")
+                  if u.endswith(".dmg"):
+                      url = u
+              if not short or not url:
+                  continue
+              key = tuple(int(p) for p in re.findall(r"\d+", short))
+              if best is None or key > best[0]:
+                  best = (key, short, url)
+          if best is None:
+              raise SystemExit("no dmg item found in appcast")
+          print(f"version={best[1]}")
+          print(f"url={best[2]}")
+          EOF
+
+      - name: Bump cask if the appcast is ahead
+        run: |
+          set -euo pipefail
+          cask="Casks/nextline.rb"
+          latest="${{ steps.appcast.outputs.version }}"
+          url="${{ steps.appcast.outputs.url }}"
+          current="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$cask")"
+          echo "cask: $current  appcast: $latest"
+          if [ "$latest" = "$current" ]; then
+            echo "up to date"
+            exit 0
+          fi
+          sha="$(curl -fsSL "$url" | shasum -a 256 | awk '{print $1}')"
+          sed -i "s|^  version \".*\"$|  version \"$latest\"|" "$cask"
+          sed -i "s|^  sha256 \".*\"$|  sha256 \"$sha\"|" "$cask"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "nextline $latest"
+          git push
