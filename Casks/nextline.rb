@@ -1,6 +1,6 @@
 cask "nextline" do
-  version "0.9.2"
-  sha256 "dffe17614d6b6335a2f81b973c7c0245668a02e6323aa90591eeb454e0a47be7"
+  version "0.9.3"
+  sha256 "81611acdb72232061e1b794504d4d1d4984bd78175a90ebc52178ea263a4ac28"
 
   url "https://zalex666.github.io/inline-autocomplete/Nextline-#{version}.dmg",
       verified: "zalex666.github.io/inline-autocomplete/"
